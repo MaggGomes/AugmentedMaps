@@ -75,7 +75,7 @@ class AugmentedMaps(qt.QMainWindow):
             for entry in self.database.entries:
                 print(f"Matching features with {entry.name}")
                 matches = utils.match_descriptors(entry.descriptors, des)
-                print(f"Found {len(matches)} matches")
+                print(f"Found {len(matches)} descriptor matches")
 
                 if len(matches) >= 50:
                     print(f"Found a match: {entry.name}")
@@ -123,13 +123,7 @@ class AugmentedMaps(qt.QMainWindow):
 
             # Calculates the centroid of the Point of Interest image to be drawn
             interestPointCentroid = utils.get_centroid(
-                nearest_interestpoint[0][0])
-            # interestPointCentroid = utils.get_centroid(
-            # (nearest_interestpoint[0][0], nearest_interestpoint[1][0], nearest_interestpoint[2][0], nearest_interestpoint[3][0]))
-
-            print("aaaaaa\n\n")
-            print(nearest_interestpoint[0])
-            print(interestPointCentroid)
+                (nearest_interestpoint[0][0][0], nearest_interestpoint[0][1][0], nearest_interestpoint[0][2][0], nearest_interestpoint[0][3][0]))
 
             # Verifies the location of the Point of Interest and calculates the position of the its image associated to be drawn
             if interestPointCentroid[0] < w/2:
@@ -138,14 +132,14 @@ class AugmentedMaps(qt.QMainWindow):
                 interesPointImageXf = w
                 interesPointImageYf = h
                 interestPointImageCorderX = interesPointImageXi
-                interestPointImageCorderY = interesPointImageYi
+                interestPointImageCorderY = interesPointImageYi - 29
             else:
                 interesPointImageXi = 0
                 interesPointImageYi = h - interestPointImage.shape[0]
                 interesPointImageXf = interestPointImage.shape[1]
                 interesPointImageYf = h
                 interestPointImageCorderX = interesPointImageXf
-                interestPointImageCorderY = interesPointImageYi
+                interestPointImageCorderY = interesPointImageYi - 29
 
             # Draw image of the Point of Interest in the map
             image[interesPointImageYi:interesPointImageYf,
@@ -162,9 +156,15 @@ class AugmentedMaps(qt.QMainWindow):
             cv2.line(image, (int(interestPointCentroid[0]), int(interestPointCentroid[1])), (
                 int(interestPointImageCorderX), int(interestPointImageCorderY)), (255, 255, 255), 2)
 
+            # Calculates distance between the center and the Point of Interest
+            scale = 1
+            interestPointDistance = int(scale * nearest_interestpoint[1])
+
+            interestPointText = "Name - " + str(interestPointDistance) + " m"
+
             # Draw name of the Point of Interest
-            cv2.putText(image, "Hello World!!!", (
-                interestPointImage.shape[1], interestPointImage.shape[0]), cv2.FONT_HERSHEY_SIMPLEX, 2, 255)
+            cv2.putText(image, interestPointText, (
+                int(headerPts[1][0][0] + 5), int(headerPts[1][0][1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, 0)
 
             # Draws the location of the nearest Point of Interest
             image = cv2.polylines(
