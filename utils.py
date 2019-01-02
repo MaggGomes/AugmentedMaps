@@ -122,7 +122,6 @@ def keypoints_to_kpdict(kps):
 # Calculates centroid of the polygon
 def get_centroid(vertexes):
     print("Calculating the centroid of a polygon representing a point of interest")
-    print(vertexes)
     _x_list = [vertex[0] for vertex in vertexes]
     _y_list = [vertex[1] for vertex in vertexes]
     _len = len(vertexes)

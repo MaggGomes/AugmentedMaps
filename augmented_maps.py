@@ -72,6 +72,8 @@ class AugmentedMaps(qt.QMainWindow):
             image_hist_eq = utils.histogram_equalization(image)
             kp, des = utils.get_features(image_hist_eq)
 
+            goodImages = []
+
             for entry in self.database.entries:
                 print(f"Matching features with {entry.name}")
                 matches = utils.match_descriptors(entry.descriptors, des)
@@ -79,15 +81,21 @@ class AugmentedMaps(qt.QMainWindow):
 
                 if len(matches) >= 50:
                     print(f"Found a match: {entry.name}")
-                    # Augments map
-                    self.augment_map(kp, matches, image, entry)
+                    goodImages.append((matches, entry))
+                    goodImages.append((matches, entry))
 
-                else:
-                    info_box = qt.QMessageBox(self)
-                    info_box.setIcon(qt.QMessageBox.Warning)
-                    info_box.setText(
-                        "Couldn't find a matching image map in the database")
-                    info_box.exec()
+            if len(goodImages) == 0:
+                info_box = qt.QMessageBox(self)
+                info_box.setIcon(qt.QMessageBox.Warning)
+                info_box.setText(
+                    "Couldn't find a matching image map in the database")
+                info_box.exec()
+
+            # Sorts images according to the number of matches
+            goodImages = sorted(goodImages, key=lambda x: len(x[0]))
+
+            # Augments map
+            self.augment_map(kp, goodImages[0][0], image, goodImages[0][1])
 
     def augment_map(self, kp, matches, image, image_prepared):
         # Calculates source and destination points
