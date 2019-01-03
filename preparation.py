@@ -187,7 +187,10 @@ class Preparation(qt.QMainWindow):
         try:
             scale = int(self.Name_2.toPlainText());  # TODO
         except:
-            scale = 1
+            info_box = qt.QMessageBox(self)
+            info_box.setIcon(qt.QMessageBox.Critical)
+            info_box.setText("Please insert a valid number as scale!")
+            return info_box.exec()
 
         # Creates a new ImageMap with the data from the manipulated image
         imageMap = ImageMap(name, scale, self.editor_scene.entry['img'], keypoints, des,
