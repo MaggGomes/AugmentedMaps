@@ -63,6 +63,12 @@ class InterestPointAugmentGraphic(qt.QGraphicsItem):
         self.prepareGeometryChange()
         self._height = height
 
+    def setName(self, name):
+        self._name = name
+
+    def setImages(self, imgs):
+        self._image = imgs
+
     def boundingRect(self) -> qtc.QRectF:
         return qtc.QRectF(0, 0, self.width + 5, self.height + 5)
 

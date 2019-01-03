@@ -39,6 +39,10 @@ class Preparation(qt.QMainWindow):
 
         self.setCentralWidget(splitter)
 
+
+
+
+
     def create_sidebar(self) -> qt.QWidget:
         sidebar = qt.QWidget()
         layout = qt.QVBoxLayout()
@@ -55,9 +59,48 @@ class Preparation(qt.QMainWindow):
         self.entry_name_combo.setEditable(True)
         self.entry_name_combo.setEditText('')
 
-        info_box.setLayout(form)
-        content_layout.addWidget(info_box)
+        self.verticalLayoutWidget = qt.QWidget()
+        self.verticalLayoutWidget.setGeometry(qtc.QRect(410, 120, 181, 161))
+        self.verticalLayoutWidget.setObjectName("verticalLayoutWidget")
+        self.verticalLayout = qt.QVBoxLayout(self.verticalLayoutWidget)
+        self.verticalLayout.setContentsMargins(0, 0, 0, 0)
+        self.verticalLayout.setSpacing(0)
+        self.verticalLayout.setObjectName("verticalLayout")
+        self.label = qt.QLabel(self.verticalLayoutWidget)
+        self.label.setMaximumSize(qtc.QSize(16777215, 40))
+        font = gui.QFont()
+        font.setPointSize(10)
+        self.label.setFont(font)
+        self.label.setAutoFillBackground(True)
+        self.label.setFrameShape(qt.QFrame.Box)
+        self.label.setObjectName("label")
+        self.verticalLayout.addWidget(self.label)
+        self.Name = qt.QTextEdit(self.verticalLayoutWidget)
+        self.Name.setMaximumSize(qtc.QSize(16777215, 30))
+        font = gui.QFont()
+        font.setPointSize(10)
+        self.Name.setFont(font)
+        self.Name.setObjectName("Name")
+        self.verticalLayout.addWidget(self.Name)
+        self.label_2 = qt.QLabel(self.verticalLayoutWidget)
+        self.label_2.setMaximumSize(qtc.QSize(16777215, 40))
+        font = gui.QFont()
+        font.setPointSize(10)
+        self.label_2.setFont(font)
+        self.label_2.setAutoFillBackground(True)
+        self.label_2.setFrameShape(qt.QFrame.Box)
+        self.label_2.setObjectName("label_2")
+        self.verticalLayout.addWidget(self.label_2)
+        self.Name_2 = qt.QTextEdit(self.verticalLayoutWidget)
+        self.Name_2.setMaximumSize(qtc.QSize(16777215, 30))
+        font = gui.QFont()
+        font.setPointSize(10)
+        self.Name_2.setFont(font)
+        self.Name_2.setObjectName("Name_2")
+        self.verticalLayout.addWidget(self.Name_2)
 
+        info_box.setLayout(self.verticalLayout)
+        content_layout.addWidget(info_box)
         self.augments_group = qt.QButtonGroup(self)
         self.augments_group.setExclusive(False)
         self.augments_group.buttonClicked[int].connect(self.augment_clicked)
@@ -81,6 +124,10 @@ class Preparation(qt.QMainWindow):
         area.setWidget(content)
         layout.addWidget(area)
         sidebar.setLayout(layout)
+
+        self.label.setText("Name:")
+        self.label_2.setText("Scale:")
+
         return sidebar
 
     # Configures window where the image map will be rendered
@@ -114,9 +161,10 @@ class Preparation(qt.QMainWindow):
             self.img = cv2.imread(filename)
             self.editor_scene.load_map(self.img)
 
+
     # Saves the prepared map in database
     def save_map(self):
-        name = self.entry_name_combo.currentText()
+        name = self.Name.toPlainText()
 
         # Map prepared must have a name
         if not name:
@@ -136,8 +184,13 @@ class Preparation(qt.QMainWindow):
         interestPoints = [a.getInterestPoint()
                           for a in self.editor_scene.augments]
 
+        try:
+            scale = int(self.Name_2.toPlainText());  # TODO
+        except:
+            scale = 1
+
         # Creates a new ImageMap with the data from the manipulated image
-        imageMap = ImageMap(name, self.editor_scene.entry['img'], keypoints, des,
+        imageMap = ImageMap(name, scale, self.editor_scene.entry['img'], keypoints, des,
                             interestPoints)
         self._database.add_map(imageMap)
 

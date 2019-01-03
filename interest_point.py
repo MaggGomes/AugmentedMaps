@@ -7,7 +7,7 @@ class InterestPoint():
         self.w = w
         self.h = h
         self.name = None
-        self.images = None
+        self.images = set()
 
     def setName(self, name):
         self.name = name

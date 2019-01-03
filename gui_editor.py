@@ -9,7 +9,7 @@ import numpy as np
 import math
 import cv2
 from interest_point_augment_graphic import InterestPointAugmentGraphic
-
+from image_selection_dialog import ImageDlg
 
 @unique
 class EditorState(Enum):
@@ -102,6 +102,17 @@ class EditorScene(qt.QGraphicsScene):
         if self.state is EditorState.INSERT_AUGMENT_ITEM:
             if self._item:
                 self._item.drawing = False
+                dlg = ImageDlg()
+                if dlg.exec():
+                    name = dlg.name
+                    images = dlg.images
+                    self._item.setName(name)
+                    self._item.setImages(images)
+                else:
+                    self._selected = self._item
+                    self.delete_point_of_interest()
+
+                    return
                 self.augments.add(self._item)
                 self._item_start_point = None
                 self._item = None
