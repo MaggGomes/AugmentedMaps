@@ -2,6 +2,7 @@ import os
 
 import cv2
 import numpy as np
+import keyboard
 from PyQt5 import (QtWidgets as qt,
                    QtGui as gui,
                    QtCore as qtc)
@@ -38,9 +39,15 @@ class AugmentedMaps(qt.QMainWindow):
         open_act.triggered.connect(self.open_image_map)
         file_menu.addAction(open_act)
 
+        capture_video = qt.QAction('Capture Video', self)
+        capture_video.triggered.connect(self.open_capture)
+        file_menu.addAction(capture_video)
+
         exit_action = qt.QAction('Quit', self)
         exit_action.triggered.connect(qt.qApp.quit)
         file_menu.addAction(exit_action)
+
+
 
         menubar.addAction(file_menu.menuAction())
 
@@ -64,38 +71,89 @@ class AugmentedMaps(qt.QMainWindow):
         self.center()
         self.statusBar().showMessage('Ready')
 
+
+    def open_capture(self):
+        self.scene.clear()
+
+        video = cv2.VideoCapture(0)
+
+        a=0
+
+        kp = None
+        goodImages = []
+        found_match = False;
+        counter = 0
+
+        while True:
+            a = a + 1
+            check, frame = video.read()
+
+            #in order to reduce computer power:
+            if (not found_match and counter % 10 == 0) or (found_match and counter % 15 == 0):
+                found_match, kp, _, goodImages = self.compute_match(frame)
+            if found_match:
+                frame = self.augment_map(kp, goodImages[0][0], frame, goodImages[0][1])
+            else:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            counter = counter + 1
+
+
+            #show frame
+            self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(frame)))
+            key = cv2.waitKey(1)
+            if keyboard.is_pressed('q'):
+                break
+
+        video.release()
+
+        self.scene.clear()
+
     def open_image_map(self):
         filename, __ = qt.QFileDialog.getOpenFileName(self, 'Load Image', os.environ.get('HOME'),
                                                       'Images (*.jpg *.jpeg *.png)')
         if filename:
             image = cv2.imread(filename)
-            image_hist_eq = utils.histogram_equalization(image)
-            kp, des = utils.get_features(image_hist_eq)
+            found, kp, image, goodImages  = self.compute_match(image)
+            if True == found:
+                image = self.augment_map(kp, goodImages[0][0], image, goodImages[0][1])
 
-            goodImages = []
+            # Draw result in screen
+            self.scene.clear()
+            self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(image)))
+            self.update()
 
-            for entry in self.database.entries:
-                print(f"Matching features with {entry.name}")
-                matches = utils.match_descriptors(entry.descriptors, des)
-                print(f"Found {len(matches)} descriptor matches")
 
-                if len(matches) >= 50:
-                    print(f"Found a match: {entry.name}")
-                    goodImages.append((matches, entry))
-                    goodImages.append((matches, entry))
 
-            if len(goodImages) == 0:
-                info_box = qt.QMessageBox(self)
-                info_box.setIcon(qt.QMessageBox.Warning)
-                info_box.setText(
-                    "Couldn't find a matching image map in the database")
-                info_box.exec()
+    def compute_match(self, image):
+        image_hist_eq = utils.histogram_equalization(image)
+        kp, des = utils.get_features(image_hist_eq)
 
-            # Sorts images according to the number of matches
-            goodImages = sorted(goodImages, key=lambda x: len(x[0]))
+        goodImages = []
 
-            # Augments map
-            self.augment_map(kp, goodImages[0][0], image, goodImages[0][1])
+        for entry in self.database.entries:
+            #print(f"Matching features with {entry.name}")
+            matches = utils.match_descriptors(entry.descriptors, des)
+            #print(f"Found {len(matches)} descriptor matches")
+
+            if len(matches) >= 50:
+                print(f"Found a match: {entry.name}")
+                goodImages.append((matches, entry))
+                goodImages.append((matches, entry))
+
+        if len(goodImages) == 0:
+            return False, None, cv2.cvtColor(image, cv2.COLOR_BGR2RGB), []
+            #info_box = qt.QMessageBox(self)
+            #info_box.setIcon(qt.QMessageBox.Warning)
+            #info_box.setText(
+            #    "Couldn't find a matching image map in the database")
+            # info_box.exec()
+
+        # Sorts images according to the number of matches
+        goodImages = sorted(goodImages, key=lambda x: len(x[0]))
+
+        # Augments map
+        return True, kp, image, goodImages
 
     def augment_map(self, kp, matches, image, image_prepared):
         # Calculates source and destination points
@@ -197,11 +255,8 @@ class AugmentedMaps(qt.QMainWindow):
         # Draws a circle at the center of the map
         image = utils.draw_center_map(image, w, h)
 
-        # Draw result in screen
-        self.scene.clear()
-        self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(image)))
-        self.update()
-        return
+
+        return image
 
     def open_add_entry_window(self):
         print('Opening an image map')

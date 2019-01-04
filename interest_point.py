@@ -14,3 +14,5 @@ class InterestPoint():
 
     def setImage(self, image):
         self.images = image
+
+
