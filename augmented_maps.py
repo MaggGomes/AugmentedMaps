@@ -96,11 +96,19 @@ class AugmentedMaps(qt.QMainWindow):
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            #counter = counter + 1
-
+            try:
+                counter = counter + 1
+            except:
+                counter = 0
+            if not found_match:
+                # Get width and height from image
+                h, w, __ = np.shape(frame)
+                # Draws a circle at the center of the map
+                frame = utils.draw_center_map(frame, w, h)
 
             #show frame
             self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(frame)))
+
             #cv2.imshow('image', frame)
             key = cv2.waitKey(1)
             if keyboard.is_pressed('q'):
