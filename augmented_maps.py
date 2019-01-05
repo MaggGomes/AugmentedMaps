@@ -105,8 +105,8 @@ class AugmentedMaps(qt.QMainWindow):
                 # show frame
                 self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(frame)))
 
-                #cv2.imshow('image', frame)
-                #key = cv2.waitKey(1)
+                # cv2.imshow('image', frame)
+                # key = cv2.waitKey(1)
                 if keyboard.is_pressed('q'):
                     break
 
@@ -140,9 +140,9 @@ class AugmentedMaps(qt.QMainWindow):
         goodImages = []
 
         for entry in database.entries:
-            #print(f"Matching features with {entry.name}")
+            # print(f"Matching features with {entry.name}")
             matches = utils.match_descriptors(entry.descriptors, des)
-            #print(f"Found {len(matches)} descriptor matches")
+            # print(f"Found {len(matches)} descriptor matches")
 
             if len(matches) >= 50:
                 print(f"Found a match: {entry.name}")
@@ -248,6 +248,18 @@ class AugmentedMaps(qt.QMainWindow):
 
         # Project corners into frame
         dst_compass = cv2.perspectiveTransform(pts_compass, matrix)
+
+        wDiff = int(w/2 + 30 - dst_compass[0][0][0])
+        hDiff = int(h/2 - dst_compass[0][0][1])
+
+        dst_compass[0][0][0] = dst_compass[0][0][0] + wDiff
+        dst_compass[0][0][1] = dst_compass[0][0][1] + hDiff
+        dst_compass[1][0][0] = dst_compass[1][0][0] + wDiff
+        dst_compass[1][0][1] = dst_compass[1][0][1] + hDiff
+        dst_compass[2][0][0] = dst_compass[2][0][0] + wDiff
+        dst_compass[2][0][1] = dst_compass[2][0][1] + hDiff
+        dst_compass[3][0][0] = dst_compass[3][0][0] + wDiff
+        dst_compass[3][0][1] = dst_compass[3][0][1] + hDiff
 
         # Connect the corners of the compass with lines
         image = cv2.polylines(
