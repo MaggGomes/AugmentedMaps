@@ -85,7 +85,8 @@ class AugmentedMaps(qt.QMainWindow):
             if check:
                 # In order to reduce computer power:
                 if (not found_match and counter % 5 == 0) or (found_match and counter % 10 == 0):
-                    found_match, kp, _, goodImages = self.compute_match(frame)
+                    found_match, kp, _, goodImages = self.compute_match(
+                        frame, database)
                 if found_match:
                     frame = self.augment_map(
                         kp, goodImages[0][0], frame, goodImages[0][1])
@@ -119,7 +120,8 @@ class AugmentedMaps(qt.QMainWindow):
         if filename:
             image = cv2.imread(filename)
             img = image
-            found, kp, img, goodImages = self.compute_match(image)
+            found, kp, img, goodImages = self.compute_match(
+                image, self.database)
             if True == found:
                 image = self.augment_map(
                     kp, goodImages[0][0], img, goodImages[0][1])
@@ -130,13 +132,14 @@ class AugmentedMaps(qt.QMainWindow):
             self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(image)))
             self.update()
 
-    def compute_match(self, image):
+    @staticmethod
+    def compute_match(image, database):
         image_hist_eq = utils.histogram_equalization(image)
         kp, des = utils.get_features(image_hist_eq)
 
         goodImages = []
 
-        for entry in self.database.entries:
+        for entry in database.entries:
             #print(f"Matching features with {entry.name}")
             matches = utils.match_descriptors(entry.descriptors, des)
             #print(f"Found {len(matches)} descriptor matches")
@@ -155,7 +158,8 @@ class AugmentedMaps(qt.QMainWindow):
         # Augments map
         return True, kp, image, goodImages
 
-    def augment_map(self, kp, matches, image, image_prepared):
+    @staticmethod
+    def augment_map(kp, matches, image, image_prepared):
         # Calculates source and destination points
         src_pts = np.float32([image_prepared.keypoints[m.queryIdx]['pt']
                               for m in matches]).reshape(-1, 1, 2)
