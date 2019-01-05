@@ -81,7 +81,7 @@ class AugmentedMaps(qt.QMainWindow):
 
         kp = None
         goodImages = []
-        found_match = False;
+        found_match = False
         counter = 0
 
         while True:
@@ -89,18 +89,19 @@ class AugmentedMaps(qt.QMainWindow):
             check, frame = video.read()
 
             #in order to reduce computer power:
-            if (not found_match and counter % 10 == 0) or (found_match and counter % 15 == 0):
+            if (not found_match and counter % 5 == 0) or (found_match and counter % 10 == 0):
                 found_match, kp, _, goodImages = self.compute_match(frame)
             if found_match:
                 frame = self.augment_map(kp, goodImages[0][0], frame, goodImages[0][1])
-            else:
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            counter = counter + 1
+            #counter = counter + 1
 
 
             #show frame
             self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(frame)))
+            #cv2.imshow('image', frame)
             key = cv2.waitKey(1)
             if keyboard.is_pressed('q'):
                 break
@@ -114,10 +115,12 @@ class AugmentedMaps(qt.QMainWindow):
                                                       'Images (*.jpg *.jpeg *.png)')
         if filename:
             image = cv2.imread(filename)
-            found, kp, image, goodImages  = self.compute_match(image)
+            img = image
+            found, kp, img, goodImages  = self.compute_match(image)
             if True == found:
-                image = self.augment_map(kp, goodImages[0][0], image, goodImages[0][1])
-
+                image = self.augment_map(kp, goodImages[0][0], img, goodImages[0][1])
+            else :
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             # Draw result in screen
             self.scene.clear()
             self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(image)))
@@ -137,17 +140,12 @@ class AugmentedMaps(qt.QMainWindow):
             #print(f"Found {len(matches)} descriptor matches")
 
             if len(matches) >= 50:
-                print(f"Found a match: {entry.name}")
+                print("Found a match: {entry.name}")
                 goodImages.append((matches, entry))
                 goodImages.append((matches, entry))
 
         if len(goodImages) == 0:
-            return False, None, cv2.cvtColor(image, cv2.COLOR_BGR2RGB), []
-            #info_box = qt.QMessageBox(self)
-            #info_box.setIcon(qt.QMessageBox.Warning)
-            #info_box.setText(
-            #    "Couldn't find a matching image map in the database")
-            # info_box.exec()
+            return False, None, None, []
 
         # Sorts images according to the number of matches
         goodImages = sorted(goodImages, key=lambda x: len(x[0]))
