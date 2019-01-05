@@ -71,46 +71,43 @@ class AugmentedMaps(qt.QMainWindow):
 
     def open_capture(self):
         self.scene.clear()
-
-        video = cv2.VideoCapture(0)
-
         a = 0
-
         kp = None
         goodImages = []
         found_match = False
         counter = 0
+        video = cv2.VideoCapture(0)
 
         while True:
             a = a + 1
             check, frame = video.read()
 
-            # in order to reduce computer power:
-            if (not found_match and counter % 5 == 0) or (found_match and counter % 10 == 0):
-                found_match, kp, _, goodImages = self.compute_match(frame)
-            if found_match:
-                frame = self.augment_map(
-                    kp, goodImages[0][0], frame, goodImages[0][1])
+            if check:
+                # In order to reduce computer power:
+                if (not found_match and counter % 5 == 0) or (found_match and counter % 10 == 0):
+                    found_match, kp, _, goodImages = self.compute_match(frame)
+                if found_match:
+                    frame = self.augment_map(
+                        kp, goodImages[0][0], frame, goodImages[0][1])
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            try:
-                counter = counter + 1
-            except:
-                counter = 0
-            if not found_match:
-                # Get width and height from image
-                h, w, __ = np.shape(frame)
-                # Draws a circle at the center of the map
-                frame = utils.draw_center_map(frame, w, h)
+                try:
+                    counter = counter + 1
+                except:
+                    counter = 0
+                if not found_match:
+                    # Get width and height from image
+                    h, w, __ = np.shape(frame)
+                    # Draws a circle at the center of the map
+                    frame = utils.draw_center_map(frame, w, h)
 
-            # show frame
-            self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(frame)))
+                # show frame
+                self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(frame)))
 
-            #cv2.imshow('image', frame)
-            key = cv2.waitKey(1)
-            if keyboard.is_pressed('q'):
-                break
+                #cv2.imshow('image', frame)
+                #key = cv2.waitKey(1)
+                if keyboard.is_pressed('q'):
+                    break
 
         video.release()
 
@@ -145,7 +142,7 @@ class AugmentedMaps(qt.QMainWindow):
             #print(f"Found {len(matches)} descriptor matches")
 
             if len(matches) >= 50:
-                print("Found a match: {entry.name}")
+                print(f"Found a match: {entry.name}")
                 goodImages.append((matches, entry))
                 goodImages.append((matches, entry))
 
@@ -180,15 +177,17 @@ class AugmentedMaps(qt.QMainWindow):
                 image_prepared, matrix, w, h)
 
             # Resize the image of the Point of Interest
+            interestImage = cv2.cvtColor(
+                nearest_interestpoint[3], cv2.COLOR_BGR2RGB)
             if image.shape[0] > image.shape[1]:
                 interestPointImage = cv2.resize(
-                    nearest_interestpoint[3], (int(0.30*image.shape[1]), int(0.25*image.shape[0])), interpolation=cv2.INTER_CUBIC)
+                    interestImage, (int(0.30*image.shape[1]), int(0.25*image.shape[0])), interpolation=cv2.INTER_CUBIC)
             elif image.shape[0] <= image.shape[1]:
                 interestPointImage = cv2.resize(
-                    nearest_interestpoint[3], (int(0.25*image.shape[1]), int(0.30*image.shape[0])), interpolation=cv2.INTER_CUBIC)
+                    interestImage, (int(0.25*image.shape[1]), int(0.30*image.shape[0])), interpolation=cv2.INTER_CUBIC)
             else:
                 interestPointImage = cv2.resize(
-                    nearest_interestpoint[3], (int(0.30*image.shape[1]), int(0.30*image.shape[0])), interpolation=cv2.INTER_CUBIC)
+                    interestImage, (int(0.30*image.shape[1]), int(0.30*image.shape[0])), interpolation=cv2.INTER_CUBIC)
 
             # Calculates the centroid of the Point of Interest image to be drawn
             interestPointCentroid = utils.get_centroid(
