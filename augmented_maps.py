@@ -47,8 +47,6 @@ class AugmentedMaps(qt.QMainWindow):
         exit_action.triggered.connect(qt.qApp.quit)
         file_menu.addAction(exit_action)
 
-
-
         menubar.addAction(file_menu.menuAction())
 
         database_menu = menubar.addMenu('Preparation')
@@ -71,13 +69,12 @@ class AugmentedMaps(qt.QMainWindow):
         self.center()
         self.statusBar().showMessage('Ready')
 
-
     def open_capture(self):
         self.scene.clear()
 
         video = cv2.VideoCapture(0)
 
-        a=0
+        a = 0
 
         kp = None
         goodImages = []
@@ -88,11 +85,12 @@ class AugmentedMaps(qt.QMainWindow):
             a = a + 1
             check, frame = video.read()
 
-            #in order to reduce computer power:
+            # in order to reduce computer power:
             if (not found_match and counter % 5 == 0) or (found_match and counter % 10 == 0):
                 found_match, kp, _, goodImages = self.compute_match(frame)
             if found_match:
-                frame = self.augment_map(kp, goodImages[0][0], frame, goodImages[0][1])
+                frame = self.augment_map(
+                    kp, goodImages[0][0], frame, goodImages[0][1])
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -106,7 +104,7 @@ class AugmentedMaps(qt.QMainWindow):
                 # Draws a circle at the center of the map
                 frame = utils.draw_center_map(frame, w, h)
 
-            #show frame
+            # show frame
             self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(frame)))
 
             #cv2.imshow('image', frame)
@@ -124,17 +122,16 @@ class AugmentedMaps(qt.QMainWindow):
         if filename:
             image = cv2.imread(filename)
             img = image
-            found, kp, img, goodImages  = self.compute_match(image)
+            found, kp, img, goodImages = self.compute_match(image)
             if True == found:
-                image = self.augment_map(kp, goodImages[0][0], img, goodImages[0][1])
-            else :
+                image = self.augment_map(
+                    kp, goodImages[0][0], img, goodImages[0][1])
+            else:
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             # Draw result in screen
             self.scene.clear()
             self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(image)))
             self.update()
-
-
 
     def compute_match(self, image):
         image_hist_eq = utils.histogram_equalization(image)
@@ -185,13 +182,13 @@ class AugmentedMaps(qt.QMainWindow):
             # Resize the image of the Point of Interest
             if image.shape[0] > image.shape[1]:
                 interestPointImage = cv2.resize(
-                    image, (int(0.30*image.shape[1]), int(0.25*image.shape[0])), interpolation=cv2.INTER_CUBIC)
+                    nearest_interestpoint[3], (int(0.30*image.shape[1]), int(0.25*image.shape[0])), interpolation=cv2.INTER_CUBIC)
             elif image.shape[0] <= image.shape[1]:
                 interestPointImage = cv2.resize(
-                    image, (int(0.25*image.shape[1]), int(0.30*image.shape[0])), interpolation=cv2.INTER_CUBIC)
+                    nearest_interestpoint[3], (int(0.25*image.shape[1]), int(0.30*image.shape[0])), interpolation=cv2.INTER_CUBIC)
             else:
                 interestPointImage = cv2.resize(
-                    image, (int(0.30*image.shape[1]), int(0.30*image.shape[0])), interpolation=cv2.INTER_CUBIC)
+                    nearest_interestpoint[3], (int(0.30*image.shape[1]), int(0.30*image.shape[0])), interpolation=cv2.INTER_CUBIC)
 
             # Calculates the centroid of the Point of Interest image to be drawn
             interestPointCentroid = utils.get_centroid(
@@ -229,10 +226,11 @@ class AugmentedMaps(qt.QMainWindow):
                 int(interestPointImageCorderX), int(interestPointImageCorderY)), (255, 255, 255), 2)
 
             # Calculates distance between the center and the Point of Interest
-            scale = 1
+            scale = image_prepared.scale
             interestPointDistance = int(scale * nearest_interestpoint[1])
 
-            interestPointText = "Name - " + str(interestPointDistance) + " m"
+            interestPointText = nearest_interestpoint[2] + \
+                " - " + str(interestPointDistance) + " m"
 
             # Draw name of the Point of Interest
             cv2.putText(image, interestPointText, (
@@ -260,7 +258,6 @@ class AugmentedMaps(qt.QMainWindow):
 
         # Draws a circle at the center of the map
         image = utils.draw_center_map(image, w, h)
-
 
         return image
 

@@ -22,7 +22,7 @@ def draw_center_map(img, width, height):
 
 # Return nearest Point of Interest
 def get_nearest_interestpoint(image_prepared, matrix, w, h):
-    nearest_interestpoint = [None, None]
+    nearest_interestpoint = [None, None, None, None]
 
     for interestpoint in image_prepared.interestPoints:
         print(
@@ -54,7 +54,8 @@ def get_nearest_interestpoint(image_prepared, matrix, w, h):
 
         if nearest_interestpoint[1] is None or distance < nearest_interestpoint[1]:
             print("Changed nearest Point of Interest")
-            nearest_interestpoint = [dst_interestpoint, distance]
+            nearest_interestpoint = [
+                dst_interestpoint, distance, interestpoint.name, interestpoint.images[0]]
 
     return nearest_interestpoint
 
