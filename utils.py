@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 import math
+import yaml
+
 from typing import Tuple, List
 from PyQt5 import QtGui as gui
 
@@ -160,3 +162,45 @@ def numpy_to_qimage(src: np.array):
 def image_to_qimage(img):
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return numpy_to_qimage(img_rgb)
+
+
+def camera_calibration_matrix():
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+
+    objp = np.zeros((6*7,3), np.float32)
+    objp[:,:2] = np.mgrid[0:7,0:6].T.reshape(-1,2)
+
+    objpoints = []
+    imgpoints = []
+
+    cap = cv2.VideoCapture(0)
+    found = 0
+    while(found < 30):
+        ret, img = cap.read()
+        img = cv2.flip(img, 1)
+        cv2.imwrite('photo.png' , img)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        ret, corners = cv2.findChessboardCorners(gray, (7,6), None)
+
+        if ret == True:
+            objpoints.append(objp)
+            corners2 = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
+            imgpoints.append(corners2)
+
+            img = cv2.drawChessboardCorners(img, (7,6), corners2, ret)
+            found += 1
+
+        cv2.imshow('img', img)
+        cv2.waitKey(10)
+        if found == 30:
+            cv2.imwrite ('output.png', img)
+    cap.release()
+    cv2.destroyAllWindows()
+
+    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape [::-1], None, None)
+
+    data = {'camera_matrix': np.asanyarray(mtx), 'dist_coeff': np.asarray(dist)}
+
+    with open("camera_parameters.yaml", "w") as f:
+        yaml.dump(data, f)

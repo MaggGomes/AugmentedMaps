@@ -3,6 +3,8 @@ import os
 import cv2
 import numpy as np
 import keyboard
+import yaml
+import _thread
 from PyQt5 import (QtWidgets as qt,
                    QtGui as gui,
                    QtCore as qtc)
@@ -15,7 +17,11 @@ from database import Database
 from preparation import Preparation
 
 
+
+
+
 class AugmentedMaps(qt.QMainWindow):
+
     def __init__(self):
         super().__init__()
         self.database: Database = None
@@ -27,6 +33,7 @@ class AugmentedMaps(qt.QMainWindow):
         self.view = qt.QGraphicsView(self.scene)
         self.popup_list: EntriesList = None
         self.setCentralWidget(self.view)
+        self.entry = None
         self.show()
 
     def configure_menu(self):
@@ -42,6 +49,10 @@ class AugmentedMaps(qt.QMainWindow):
         capture_video = qt.QAction('Capture Video', self)
         capture_video.triggered.connect(self.open_capture)
         file_menu.addAction(capture_video)
+
+        calibrate_camera = qt.QAction('Calibrate Camera', self)
+        calibrate_camera.triggered.connect(self.open_camera_calibration)
+        file_menu.addAction(calibrate_camera)
 
         exit_action = qt.QAction('Quit', self)
         exit_action.triggered.connect(qt.qApp.quit)
@@ -69,33 +80,66 @@ class AugmentedMaps(qt.QMainWindow):
         self.center()
         self.statusBar().showMessage('Ready')
 
+
+    def open_camera_calibration(self):
+        utils.camera_calibration_matrix()
+        return
+
+
     def open_capture(self):
+
         self.scene.clear()
         a = 0
+
+        counter = 0
+
+        # camera calibration matrix
+        with open('camera_parameters.yaml') as f:
+            loadeddict = yaml.load(f)
+
+        mtx = loadeddict.get('camera_matrix')
+        dist = loadeddict.get('dist_coeff')
         kp = None
         goodImages = []
         found_match = False
-        counter = 0
+
         video = cv2.VideoCapture(0)
 
         while True:
             a = a + 1
             check, frame = video.read()
 
+
             if check:
+
+                found_match, kp, goodImages = self.compute_match(frame, self.database)
                 # In order to reduce computer power:
-                if (not found_match and counter % 5 == 0) or (found_match and counter % 10 == 0):
-                    found_match, kp, _, goodImages = self.compute_match(
-                        frame, database)
-                if found_match:
-                    frame = self.augment_map(
-                        kp, goodImages[0][0], frame, goodImages[0][1])
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                if (not self.entry == None) and found_match == False:
+                    self.entry = None
+
+
+
+                if found_match :
+                    #eliminate distortion
+
+                    h, w = frame.shape[:2]
+                    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
+
+                    # undistort
+                    dst = cv2.undistort(frame, mtx, dist, None, newcameramtx)
+
+                    # crop the image
+                    x, y, w, h = roi
+                    frame = dst[y:y + h, x:x + w]
+                    frame = self.augment_map(kp, goodImages[0][0], frame, goodImages[0][1])
+                else:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
                 try:
                     counter = counter + 1
                 except:
                     counter = 0
+
                 if not found_match:
                     # Get width and height from image
                     h, w, __ = np.shape(frame)
@@ -105,8 +149,8 @@ class AugmentedMaps(qt.QMainWindow):
                 # show frame
                 self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(frame)))
 
-                # cv2.imshow('image', frame)
-                # key = cv2.waitKey(1)
+                #cv2.imshow('image', frame)
+                key = cv2.waitKey(1)
                 if keyboard.is_pressed('q'):
                     break
 
@@ -114,14 +158,14 @@ class AugmentedMaps(qt.QMainWindow):
 
         self.scene.clear()
 
+
     def open_image_map(self):
         filename, __ = qt.QFileDialog.getOpenFileName(self, 'Load Image', os.environ.get('HOME'),
                                                       'Images (*.jpg *.jpeg *.png)')
         if filename:
             image = cv2.imread(filename)
             img = image
-            found, kp, img, goodImages = self.compute_match(
-                image, self.database)
+            found, kp, img, goodImages = self.compute_match(image, self.database)
             if True == found:
                 image = self.augment_map(
                     kp, goodImages[0][0], img, goodImages[0][1])
@@ -132,31 +176,46 @@ class AugmentedMaps(qt.QMainWindow):
             self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(image)))
             self.update()
 
-    @staticmethod
-    def compute_match(image, database):
+
+    def compute_match(self, image, database):
         image_hist_eq = utils.histogram_equalization(image)
-        kp, des = utils.get_features(image_hist_eq)
+        continueProcc = True
 
-        goodImages = []
+        try:
+            kp, des = utils.get_features(image_hist_eq)
+        except:
+            continueProcc = False
 
-        for entry in database.entries:
-            # print(f"Matching features with {entry.name}")
-            matches = utils.match_descriptors(entry.descriptors, des)
-            # print(f"Found {len(matches)} descriptor matches")
+        if continueProcc:
 
+            goodImages = []
+
+            #if AugmentedMaps.entry == None:
+
+            for entry in database.entries:
+                print(f"Matching features with {entry.name}")
+                self.entry = entry
+                matches = utils.match_descriptors(entry.descriptors, des)
+                print(f"Found {len(matches)} descriptor matches")
+
+                if len(matches) >= 50:
+                    print(f"Found a match: {entry.name}")
+                    goodImages.append((matches, entry))
+                #goodImages.append((matches, entry))
+        else:
+            matches = utils.match_descriptors(AugmentedMaps.entry.descriptors, des)
             if len(matches) >= 50:
-                print(f"Found a match: {entry.name}")
-                goodImages.append((matches, entry))
-                goodImages.append((matches, entry))
+                 goodImages.append((matches, self.entry))
 
         if len(goodImages) == 0:
-            return False, None, None, []
+            continueProcc = False
 
-        # Sorts images according to the number of matches
-        goodImages = sorted(goodImages, key=lambda x: len(x[0]))
+        if continueProcc :
+            return True, kp, sorted(goodImages, key=lambda x: len(x[0]))
 
-        # Augments map
-        return True, kp, image, goodImages
+        else:
+            return False, None, None
+
 
     @staticmethod
     def augment_map(kp, matches, image, image_prepared):
