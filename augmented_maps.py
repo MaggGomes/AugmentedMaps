@@ -22,7 +22,12 @@ from preparation import Preparation
 
 class AugmentedMaps(qt.QMainWindow):
 
-    def __init__(self):
+    MTX = None
+    debug = False
+
+
+
+    def __init__(self, debug = False):
         super().__init__()
         self.database: Database = None
         self.database = Database.connect('db.db')
@@ -34,6 +39,7 @@ class AugmentedMaps(qt.QMainWindow):
         self.popup_list: EntriesList = None
         self.setCentralWidget(self.view)
         self.entry = None
+        AugmentedMaps.debug = debug
         self.show()
 
     def configure_menu(self):
@@ -89,16 +95,22 @@ class AugmentedMaps(qt.QMainWindow):
     def open_capture(self):
 
         self.scene.clear()
-        a = 0
+
 
         counter = 0
 
-        # camera calibration matrix
-        with open('camera_parameters.yaml') as f:
-            loadeddict = yaml.load(f)
+        try :
+            # camera calibration matrix
+            with open('camera_parameters.yaml') as f:
+                loadeddict = yaml.load(f)
 
-        mtx = loadeddict.get('camera_matrix')
-        dist = loadeddict.get('dist_coeff')
+            mtx = loadeddict.get('camera_matrix')
+            mtx = mtx.ravel()
+            AugmentedMaps.MTX = [[mtx[0], mtx[1], mtx[2]], [mtx[3], mtx[4], mtx[5]], [mtx[6], mtx[7], mtx[8]]]
+        except:
+            AugmentedMaps.MTX = [[390, 0, 302], [0,387,214], [0,0,1]]
+
+
         kp = None
         goodImages = []
         found_match = False
@@ -106,7 +118,7 @@ class AugmentedMaps(qt.QMainWindow):
         video = cv2.VideoCapture(0)
 
         while True:
-            a = a + 1
+
             check, frame = video.read()
 
 
@@ -120,18 +132,8 @@ class AugmentedMaps(qt.QMainWindow):
 
 
                 if found_match :
-                    #eliminate distortion
 
-                    h, w = frame.shape[:2]
-                    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
-
-                    # undistort
-                    dst = cv2.undistort(frame, mtx, dist, None, newcameramtx)
-
-                    # crop the image
-                    x, y, w, h = roi
-                    frame = dst[y:y + h, x:x + w]
-                    frame = self.augment_map(kp, goodImages[0][0], frame, goodImages[0][1])
+                    frame = self.augment_map(kp, goodImages[0][0], frame, goodImages[0][1], True)
                 else:
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -165,7 +167,7 @@ class AugmentedMaps(qt.QMainWindow):
         if filename:
             image = cv2.imread(filename)
             img = image
-            found, kp, img, goodImages = self.compute_match(image, self.database)
+            found, kp, goodImages = self.compute_match(image, self.database)
             if True == found:
                 image = self.augment_map(
                     kp, goodImages[0][0], img, goodImages[0][1])
@@ -198,13 +200,13 @@ class AugmentedMaps(qt.QMainWindow):
                 matches = utils.match_descriptors(entry.descriptors, des)
                 print(f"Found {len(matches)} descriptor matches")
 
-                if len(matches) >= 50:
+                if len(matches) >= 80:
                     print(f"Found a match: {entry.name}")
                     goodImages.append((matches, entry))
                 #goodImages.append((matches, entry))
         else:
             matches = utils.match_descriptors(AugmentedMaps.entry.descriptors, des)
-            if len(matches) >= 50:
+            if len(matches) >= 80:
                  goodImages.append((matches, self.entry))
 
         if len(goodImages) == 0:
@@ -218,7 +220,7 @@ class AugmentedMaps(qt.QMainWindow):
 
 
     @staticmethod
-    def augment_map(kp, matches, image, image_prepared):
+    def augment_map(kp, matches, image, image_prepared, drawPiramide = False):
         # Calculates source and destination points
         src_pts = np.float32([image_prepared.keypoints[m.queryIdx]['pt']
                               for m in matches]).reshape(-1, 1, 2)
@@ -236,7 +238,7 @@ class AugmentedMaps(qt.QMainWindow):
         # Verifies if the image map has any Point of Interest
         if len(image_prepared.interestPoints) > 0:
             # Gets the nearest Point of Interest from the center
-            nearest_interestpoint = utils.get_nearest_interestpoint(
+            Xi, Yi, nearest_interestpoint = utils.get_nearest_interestpoint(
                 image_prepared, matrix, w, h)
 
             # Resize the image of the Point of Interest
@@ -272,6 +274,8 @@ class AugmentedMaps(qt.QMainWindow):
                 interestPointImageCorderX = interesPointImageXf
                 interestPointImageCorderY = interesPointImageYi - 29
 
+
+
             # Draw image of the Point of Interest in the map
             image[interesPointImageYi:interesPointImageYf,
                   interesPointImageXi: interesPointImageXf] = interestPointImage
@@ -299,8 +303,13 @@ class AugmentedMaps(qt.QMainWindow):
                 int(headerPts[1][0][0] + 5), int(headerPts[1][0][1] - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, 0)
 
             # Draws the location of the nearest Point of Interest
-            image = cv2.polylines(
-                image, [np.int32(nearest_interestpoint[0])], True, 255, 3, cv2.LINE_AA)
+            #image = cv2.polylines(image, [np.int32(nearest_interestpoint[0])], True, 255, 3, cv2.LINE_AA)
+
+            if (drawPiramide):
+                projection = utils.projection_matrix(AugmentedMaps.MTX, matrix)
+                image = utils.render(image, projection, nearest_interestpoint, [Xi, Yi])
+
+
 
         # Gets the points of the compass
         pts_compass = utils.get_compass_points(w, h)

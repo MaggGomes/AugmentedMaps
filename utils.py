@@ -26,6 +26,7 @@ def draw_center_map(img, width, height):
 def get_nearest_interestpoint(image_prepared, matrix, w, h):
     nearest_interestpoint = [None, None, None, None]
 
+    interestpointF = None
     for interestpoint in image_prepared.interestPoints:
         print(
             f"Points of Interest - Coord Xi: {interestpoint.x}")
@@ -58,8 +59,9 @@ def get_nearest_interestpoint(image_prepared, matrix, w, h):
             print("Changed nearest Point of Interest")
             nearest_interestpoint = [
                 dst_interestpoint, distance, interestpoint.name, interestpoint.images[0]]
+            interestpointF = interestpoint
 
-    return nearest_interestpoint
+    return interestpointF.x, interestpointF.y, nearest_interestpoint
 
 
 # Returns the compass points
@@ -204,3 +206,62 @@ def camera_calibration_matrix():
 
     with open("camera_parameters.yaml", "w") as f:
         yaml.dump(data, f)
+
+
+def projection_matrix(camera_parameters, homography):
+
+    # Compute rotation along the x and y axis as well as the translation
+    homography = homography * (-1)
+    rot_and_transl = np.dot(np.linalg.inv(camera_parameters), homography)
+    col_1 = rot_and_transl[:, 0]
+    col_2 = rot_and_transl[:, 1]
+    col_3 = rot_and_transl[:, 2]
+    # normalise vectors
+    l = math.sqrt(np.linalg.norm(col_1, 2) * np.linalg.norm(col_2, 2))
+    rot_1 = col_1 / l
+    rot_2 = col_2 / l
+    translation = col_3 / l
+    # compute the orthonormal basis
+    c = rot_1 + rot_2
+    p = np.cross(rot_1, rot_2)
+    d = np.cross(c, p)
+    rot_1 = np.dot(c / np.linalg.norm(c, 2) + d / np.linalg.norm(d, 2), 1 / math.sqrt(2))
+    rot_2 = np.dot(c / np.linalg.norm(c, 2) - d / np.linalg.norm(d, 2), 1 / math.sqrt(2))
+    rot_3 = np.cross(rot_1, rot_2)
+    # finally, compute the 3D projection matrix from the model to the current frame
+    projection = np.stack((rot_1, rot_2, rot_3, translation)).T
+    return np.dot(camera_parameters, projection)
+
+def render(img, projection, base_pointsS, interestPointCentroid ):
+
+
+    scale_matrix = np.eye(3) * 12
+    base_points = []
+    for p in base_pointsS:
+        base_points.append(p)
+
+
+    centroid_point = get_centroid((base_pointsS[0][0][0], base_pointsS[0][1][0], base_pointsS[0][2][0], base_pointsS[0][3][0]))
+    centroid_point = interestPointCentroid
+    f1 = [base_points[0][1][0][0], base_points[0][1][0][1], 0], [centroid_point[0], centroid_point[1], 60], [base_points[0][0][0][0], base_points[0][0][0][1], 0]
+    f2 = [base_points[0][2][0][0], base_points[0][2][0][1], 0], [centroid_point[0], centroid_point[1], 60], [base_points[0][2][0][0], base_points[0][2][0][1], 0]
+    f3 = [base_points[0][2][0][0], base_points[0][2][0][1], 0], [centroid_point[0], centroid_point[1], 60], [base_points[0][3][0][0], base_points[0][3][0][1], 0]
+    f4 = [base_points[0][3][0][0], base_points[0][3][0][1], 0], [centroid_point[0], centroid_point[1], 60], [base_points[0][0][0][0], base_points[0][0][0][1], 0]
+    faces = [f1, f2, f3, f4]
+
+    faces =  np.float32([ [[-3,-3,0], [0,0,20], [3,-3,0]],  [[-3,3,0], [0,0,20], [-3,-3,0]], [[3,3,0], [0,0,20], [-3,3,0]], [[3,-3,0], [0,0,20], [3,3,0]]])
+
+
+    for face in faces:
+        points = np.dot(face, scale_matrix)
+        w = centroid_point[0]
+        h = centroid_point[1]
+        points = np.array([[p[0] + w + 40, p[1] + h + 30, p[2]] for p in points])
+        dst = cv2.perspectiveTransform(points.reshape(-1, 1, 3), projection)
+        #dst = np.array([[p[0] + w, p[1] + h] for p[0] in dst])
+        imgpts = np.int32(dst)
+        cv2.fillConvexPoly(img, imgpts, (137, 27, 211))
+
+
+
+    return img
