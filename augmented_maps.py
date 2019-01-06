@@ -22,7 +22,11 @@ from preparation import Preparation
 
 class AugmentedMaps(qt.QMainWindow):
 
-    def __init__(self):
+    MTX = None
+    DIST = None
+    debug = False
+
+    def __init__(self, debug):
         super().__init__()
         self.database: Database = None
         self.database = Database.connect('db.db')
@@ -34,6 +38,7 @@ class AugmentedMaps(qt.QMainWindow):
         self.popup_list: EntriesList = None
         self.setCentralWidget(self.view)
         self.entry = None
+        AugmentedMaps.debug = debug
         self.show()
 
     def configure_menu(self):
@@ -97,8 +102,12 @@ class AugmentedMaps(qt.QMainWindow):
         with open('camera_parameters.yaml') as f:
             loadeddict = yaml.load(f)
 
-        mtx = loadeddict.get('camera_matrix')
-        dist = loadeddict.get('dist_coeff')
+        mtx= loadeddict.get('camera_matrix')
+        self.DIST = loadeddict.get('dist_coeff')
+        mtx = mtx.ravel()
+        AugmentedMaps.MTX =  [[mtx[0], mtx[1], mtx[2]], [mtx[3], mtx[4], mtx[5]], [mtx[6], mtx[7], mtx[8]]]
+
+
         kp = None
         goodImages = []
         found_match = False
@@ -106,31 +115,22 @@ class AugmentedMaps(qt.QMainWindow):
         video = cv2.VideoCapture(0)
 
         while True:
-            a = a + 1
+
             check, frame = video.read()
 
 
             if check:
 
-                found_match, kp, goodImages = self.compute_match(frame, self.database)
-                # In order to reduce computer power:
-                if (not self.entry == None) and found_match == False:
-                    self.entry = None
+                if counter % 1 == 0:
+                    found_match, kp, goodImages = self.compute_match(frame, self.database)
+
+                    # In order to reduce computer power:
+                    if (not self.entry == None) and found_match == False:
+                        self.entry = None
 
 
 
-                if found_match :
-                    #eliminate distortion
-
-                    h, w = frame.shape[:2]
-                    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
-
-                    # undistort
-                    dst = cv2.undistort(frame, mtx, dist, None, newcameramtx)
-
-                    # crop the image
-                    x, y, w, h = roi
-                    frame = dst[y:y + h, x:x + w]
+                if found_match:
                     frame = self.augment_map(kp, goodImages[0][0], frame, goodImages[0][1])
                 else:
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -139,12 +139,6 @@ class AugmentedMaps(qt.QMainWindow):
                     counter = counter + 1
                 except:
                     counter = 0
-
-                if not found_match:
-                    # Get width and height from image
-                    h, w, __ = np.shape(frame)
-                    # Draws a circle at the center of the map
-                    frame = utils.draw_center_map(frame, w, h)
 
                 # show frame
                 self.scene.addPixmap(gui.QPixmap(utils.numpy_to_qimage(frame)))
@@ -179,42 +173,36 @@ class AugmentedMaps(qt.QMainWindow):
 
     def compute_match(self, image, database):
         image_hist_eq = utils.histogram_equalization(image)
-        continueProcc = True
-
         try:
             kp, des = utils.get_features(image_hist_eq)
         except:
-            continueProcc = False
+            return False, None, None
 
-        if continueProcc:
-
-            goodImages = []
-
-            #if AugmentedMaps.entry == None:
-
+        goodImages = []
+        if self.entry == None:
             for entry in database.entries:
+                #if AugmentedMaps.debug:
                 print(f"Matching features with {entry.name}")
                 self.entry = entry
                 matches = utils.match_descriptors(entry.descriptors, des)
-                print(f"Found {len(matches)} descriptor matches")
+                if AugmentedMaps.debug:
+                    print(f"Found {len(matches)} descriptor matches")
 
-                if len(matches) >= 50:
+                if len(matches) >= 80:
                     print(f"Found a match: {entry.name}")
                     goodImages.append((matches, entry))
                 #goodImages.append((matches, entry))
         else:
-            matches = utils.match_descriptors(AugmentedMaps.entry.descriptors, des)
-            if len(matches) >= 50:
+            matches = utils.match_descriptors(self.entry.descriptors, des)
+            if len(matches) >= 80:
                  goodImages.append((matches, self.entry))
 
-        if len(goodImages) == 0:
-            continueProcc = False
-
-        if continueProcc :
-            return True, kp, sorted(goodImages, key=lambda x: len(x[0]))
-
-        else:
+        if goodImages == [] or len(goodImages) == 0:
             return False, None, None
+
+
+        return True, kp, sorted(goodImages, key=lambda x: len(x[0]))
+
 
 
     @staticmethod
@@ -224,7 +212,9 @@ class AugmentedMaps(qt.QMainWindow):
                               for m in matches]).reshape(-1, 1, 2)
         dst_pts = np.float32(
             [kp[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
-
+        if AugmentedMaps.debug:
+            print('Calculating Homography')
+        #homography
         matrix, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 
         # Get width and height from image
@@ -236,9 +226,12 @@ class AugmentedMaps(qt.QMainWindow):
         # Verifies if the image map has any Point of Interest
         if len(image_prepared.interestPoints) > 0:
             # Gets the nearest Point of Interest from the center
-            nearest_interestpoint = utils.get_nearest_interestpoint(
-                image_prepared, matrix, w, h)
-
+            try :
+                if AugmentedMaps.debug:
+                    print('Calculating nearest interesting point')
+                nearest_interestpoint = utils.get_nearest_interestpoint(image_prepared, matrix, w, h)
+            except:
+                return image
             # Resize the image of the Point of Interest
             interestImage = cv2.cvtColor(
                 nearest_interestpoint[3], cv2.COLOR_BGR2RGB)
@@ -272,10 +265,15 @@ class AugmentedMaps(qt.QMainWindow):
                 interestPointImageCorderX = interesPointImageXf
                 interestPointImageCorderY = interesPointImageYi - 29
 
+            if AugmentedMaps.debug:
+                print('Calculating projection to draw pyramid')
+            projection = utils.projection_matrix(AugmentedMaps.MTX, matrix)
+            image = utils.render(image, projection,  w/2, h/2)
             # Draw image of the Point of Interest in the map
             image[interesPointImageYi:interesPointImageYf,
                   interesPointImageXi: interesPointImageXf] = interestPointImage
-
+            if AugmentedMaps.debug:
+                print('Drwaing interesting point image')
             # Draws an header for the Point of Interest Image
             headerPts = utils.get_header_points(
                 interesPointImageXi, interesPointImageYi, interesPointImageXf)
@@ -302,6 +300,8 @@ class AugmentedMaps(qt.QMainWindow):
             image = cv2.polylines(
                 image, [np.int32(nearest_interestpoint[0])], True, 255, 3, cv2.LINE_AA)
 
+        if AugmentedMaps.debug:
+            print('Drawing compass')
         # Gets the points of the compass
         pts_compass = utils.get_compass_points(w, h)
 
@@ -336,7 +336,8 @@ class AugmentedMaps(qt.QMainWindow):
         return image
 
     def open_add_entry_window(self):
-        print('Opening an image map')
+        if AugmentedMaps.debug:
+            print('Opening an image map')
         self.__entryWindow = Preparation(self.database)
         pos = self.frameGeometry().topLeft()
         self.__entryWindow.move(pos.x() + 20, pos.y() + 20)
